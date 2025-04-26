@@ -6,6 +6,7 @@ import * as codebuild from 'aws-cdk-lib/aws-codebuild';
 import * as codepipeline_actions from 'aws-cdk-lib/aws-codepipeline-actions';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 
 interface ConsumerProps extends StackProps {
   ecrRepository: ecr.Repository;
@@ -76,6 +77,30 @@ export class PipelineCdkStack extends Stack {
     })
 
     dockerBuild.addToRolePolicy(dockerBuildRolePolicy);
+
+    const signerArnParameter = new ssm.StringParameter(this, 'signerArnParameter', {
+      parameterName: 'signer-profile-arn',
+      stringValue: 'arn:aws:signer:us-west-2:539247483723:/signing-profiles/ecr_signing_profile',
+    });
+
+    const signerParameterPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      resources: [signerArnParameter.parameterArn],
+      actions: ['ssm:GetParametersByPath', 'ssm:GetParameters'],
+    })
+
+    const signerPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      resources: ['*'],
+      actions: [
+        'signer:PutSigningProfile',
+        'signer:SignPayload',
+        'signer:GetRevocationStatus'
+      ],
+    })
+
+    dockerBuild.addToRolePolicy(signerParameterPolicy);
+    dockerBuild.addToRolePolicy(signerPolicy);
 
     const sourceOutput = new codepipeline.Artifact();
     const unitTestOutput = new codepipeline.Artifact();
