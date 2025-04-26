@@ -2,7 +2,7 @@ version: 0.2
 
 env:
   parameter-store:
-    SIGNER_PROFILE_ARN: 'ecr_signing_profile'
+    SIGNER_PROFILE_ARN: 'signer-profile-arn'
 
 phases:
   install:
