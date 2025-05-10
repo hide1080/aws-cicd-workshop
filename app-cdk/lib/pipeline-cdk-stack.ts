@@ -7,12 +7,18 @@ import * as codepipeline_actions from 'aws-cdk-lib/aws-codepipeline-actions';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecsPatterns from 'aws-cdk-lib/aws-ecs-patterns';
 
 interface ConsumerProps extends StackProps {
   ecrRepository: ecr.Repository;
-  fargateServiceTest: ecsPatterns.ApplicationLoadBalancedFargateService;
-  fargateServiceProd: ecsPatterns.ApplicationLoadBalancedFargateService;
+  testEcsClusterName: string;
+  testEcsServiceName: string;
+  testVpc: ec2.IVpc;
+  prodEcsClusterName: string;
+  prodEcsServiceName: string;
+  prodVpc: ec2.IVpc;
 }
 
 export class PipelineCdkStack extends Stack {
@@ -147,16 +153,38 @@ export class PipelineCdkStack extends Stack {
       ],
     });
 
+    // ECS クラスターとサービスを名前からインポート
+    const testEcsCluster = ecs.Cluster.fromClusterAttributes(this, 'TestEcsCluster', {
+      clusterName: props.testEcsClusterName,
+      vpc: props.testVpc,
+    });
+    
+    const testEcsService = ecs.FargateService.fromFargateServiceAttributes(this, 'TestEcsService', {
+      serviceName: props.testEcsServiceName,
+      cluster: testEcsCluster,
+    });
+
     pipeline.addStage({
       stageName: 'Deploy-Test',
       actions: [
         new codepipeline_actions.EcsDeployAction({
           actionName: 'Deploy-Fargate-Test',
-          service: props.fargateServiceTest.service,
+          service: testEcsService,
           input: dockerBuildOutput,
         }),
       ],
     });
+
+    const prodEcsCluster = ecs.Cluster.fromClusterAttributes(this, 'ProdEcsCluster', {
+      clusterName: props.prodEcsClusterName,
+      vpc: props.prodVpc,
+    });
+    
+    const prodEcsService = ecs.FargateService.fromFargateServiceAttributes(this, 'ProdEcsService', {
+      serviceName: props.prodEcsServiceName,
+      cluster: prodEcsCluster,
+    });
+
 
     pipeline.addStage({
       stageName: 'Deploy-Production',
@@ -167,7 +195,7 @@ export class PipelineCdkStack extends Stack {
         }),
         new codepipeline_actions.EcsDeployAction({
           actionName: 'Deploy-Fargate-Prod',
-          service: props.fargateServiceProd.service,
+          service: prodEcsService,
           input: dockerBuildOutput,
           runOrder: 2,
         }),

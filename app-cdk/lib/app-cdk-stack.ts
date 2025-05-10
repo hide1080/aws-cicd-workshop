@@ -10,23 +10,42 @@ interface ConsumerProps extends StackProps {
 }
 
 export class AppCdkStack extends Stack {
-  public readonly fargateService: ecsPatterns.ApplicationLoadBalancedFargateService;
+  public readonly vpc: ec2.IVpc;
+  public readonly ecsClusterName: string;
+  public readonly ecsServiceName: string;
 
   constructor(scope: Construct, id: string, props: ConsumerProps) {
     super(scope, `${id}-app-stack`, props);
 
-    const vpc = new ec2.Vpc(this, `${id}-vpc`);
+    this.vpc = new ec2.Vpc(this, `${id}-vpc`, {
+      natGateways: 0,
+      subnetConfiguration: [
+        {
+          subnetType: ec2.SubnetType.PUBLIC,
+          name: 'public',
+          cidrMask: 24,
+        },
+      ],
+    });
+    this.ecsClusterName = `${id}-ecs-cluster`;
+    this.ecsServiceName = `${id}-fargate-service`;
 
     const cluster = new ecs.Cluster(this, `${id}-ecs-cluster`, {
-      vpc: vpc,
+      vpc: this.vpc,
+      clusterName: this.ecsClusterName,
     });
 
-    this.fargateService = new ecsPatterns.ApplicationLoadBalancedFargateService(
+    const fargateService = new ecsPatterns.ApplicationLoadBalancedFargateService(
       this,
       `${id}-fargate-service`,
       {
         cluster: cluster,
+        serviceName: this.ecsServiceName,
         publicLoadBalancer: true,
+        assignPublicIp: true,
+        taskSubnets: {
+          subnetType: ec2.SubnetType.PUBLIC,
+        },
         memoryLimitMiB: 512,
         cpu: 256,
         desiredCount: 1,
@@ -38,7 +57,7 @@ export class AppCdkStack extends Stack {
       },
     );
 
-    this.fargateService.targetGroup.configureHealthCheck({
+    fargateService.targetGroup.configureHealthCheck({
       healthyThresholdCount: 2,
       unhealthyThresholdCount: 2,
       timeout: Duration.seconds(10),
@@ -46,7 +65,7 @@ export class AppCdkStack extends Stack {
       path: '/my-app',
     });
 
-    this.fargateService.targetGroup.setAttribute(
+    fargateService.targetGroup.setAttribute(
       'deregistration_delay.timeout_seconds',
       '5',
     );
