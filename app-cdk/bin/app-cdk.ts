@@ -25,4 +25,8 @@ const pipelineCdkStack = new PipelineCdkStack(app, 'pipeline-stack', {
   prodEcsClusterName: prodCdkStack.ecsClusterName,
   prodEcsServiceName: prodCdkStack.ecsServiceName,
   prodVpc: prodCdkStack.vpc,
+  greenTargetGroup: prodCdkStack.greenTargetGroup,
+  greenLoadBalancerListener: prodCdkStack.greenLoadBalancerListener,
+  blueTargetGroup: prodCdkStack.blueTargetGroup,
+  blueLoadBalancerListener: prodCdkStack.blueLoadBalancerListener,
 });
